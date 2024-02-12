@@ -10,8 +10,7 @@ namespace SharedLib.Services
 
         public AzureBlobStorageService()
         {
-            connectionString =
-                "DefaultEndpointsProtocol=https;AccountName=qfrgtap3gjjlyfnstorage;AccountKey=lOYipSJx4R/9Ql9WWs+GuwqVvWfAB1ZPFFNLdbvTjGYWOnOrn0F2u+IE/1kLczyie9bguqHJqIJh+AStZnYv1w==;EndpointSuffix=core.windows.net";
+            connectionString ="";
             containerName = "product-photos";
         }
 
