@@ -1,0 +1,188 @@
+name: Deploy
+# Deploy Vector Search & AI Assistant for Azure Cosmos DB for MongoDB vCore
+on:
+  workflow_dispatch:
+        
+    inputs:
+      # Change this value
+      mongoDbUserName:
+        description: "Username for the MongoDB Database No dashes"
+        required: true
+        default: "mongoDbAdmin"
+      openAiSku:
+        description: "Azure Open Ai Sku"
+        required: true
+        default: "S0"
+      appServiceSku:
+        description: "Azure App Service Sku"
+        required: true
+        default: "B1"
+      resource-group-name:
+        description: "Resource Group Name"
+        required: true
+        default: "rg-apps-db-mongo-ai"
+
+env:
+      AZUREAPIAPP_PACKAGE_PATH: src\ContosoBikeShopServer\published
+      API_WORKING_DIRECTORY: src/ContosoBikeShopServer
+      CONFIGURATION: Release
+      DOTNET_CORE_VERSION: 8.0.x
+      WEB_WORKING_DIRECTORY: src/ContosoBikeShopWebApp
+      AZUREWEBAPP_PACKAGE_PATH: src\ContosoBikeShopWebApp\published
+      MONGO_CONNECTION_STRING_SRV:  mongodb+srv://
+      MONGO_CONNECTION_STRING_CONN:  mongocluster.cosmos.azure.com/?tls=true&authMechanism=SCRAM-SHA-256&retrywrites=false&maxIdleTimeMS=120000
+
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+        # with:
+        #   ref: ${{ github.event.inputs.appGetRepositoryBranch }}
+
+      - name: Set up Azure CLI
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }} # Set up a GitHub secret for Azure credentials
+
+      - run: |
+          az group create -l westus -n ${{ github.event.inputs.resource-group-name }}
+
+      #   # Deploy Bicep file
+      - name: deploy
+        id: deploy-azure-resources
+        uses: azure/arm-deploy@v1
+        with:
+            resourceGroupName: ${{ github.event.inputs.resource-group-name }}
+            template: ./infra/bicep/azure-deploy.bicep
+            parameters: 
+              mongoDbUserName=${{ github.event.inputs.mongoDbUserName }} 
+              mongoDbPassword=${{ secrets.MONGO_DB_PASSWORD }}
+              appServiceSku=${{ github.event.inputs.appServiceSku }}
+              openAiSku=${{ github.event.inputs.openAiSku }}
+            failOnStdErr: false
+    outputs:
+      deployedApiUrl: ${{ steps.deploy-azure-resources.outputs.deployedApiUrl }}
+      deployedWebUrl: ${{ steps.deploy-azure-resources.outputs.deployedWebUrl }}
+      
+
+  build-api:
+      needs: deploy
+      runs-on: windows-latest
+      steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: ${{ env.DOTNET_CORE_VERSION }}
+      - name: Restore
+        run: dotnet restore "${{ env.API_WORKING_DIRECTORY }}"
+      - name: Build
+        run: dotnet build "${{ env.API_WORKING_DIRECTORY }}" --configuration ${{ env.CONFIGURATION }} --no-restore
+      - name: Test
+        run: dotnet test "${{ env.API_WORKING_DIRECTORY }}" --no-build
+      - name: Publish
+        run: dotnet publish "${{ env.API_WORKING_DIRECTORY }}" --configuration ${{ env.CONFIGURATION }} --no-build --no-restore --output "${{ env.AZUREAPIAPP_PACKAGE_PATH }}"
+      - name: Publish Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: webapp
+          path: ${{ env.AZUREAPIAPP_PACKAGE_PATH }}
+
+  deploy-api:
+      runs-on: windows-latest
+      needs: [deploy,build-api]
+      steps:
+      - name: Download artifact from build job
+        uses: actions/download-artifact@v3
+        with:
+          name: webapp
+          path: ${{ env.AZUREAPIAPP_PACKAGE_PATH }}
+      - name: Login to Azure
+        uses: azure/login@v1
+        with:
+              creds: ${{ secrets.AZURE_CREDENTIALS }} # Set up a GitHub secret for Azure credentials
+      - name: Deploy to Azure WebApp
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{needs.deploy.outputs.deployedApiUrl}}
+          package: ${{ env.AZUREAPIAPP_PACKAGE_PATH }}
+
+
+  build-web:
+    runs-on: windows-latest
+    needs: deploy
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: ${{ env.DOTNET_CORE_VERSION }}
+    # - name: Restore
+    #   run: dotnet restore "${{ env.WEB_WORKING_DIRECTORY }}"
+    # - name: Build
+    #   run: dotnet build "${{ env.WEB_WORKING_DIRECTORY }}" --configuration ${{ env.CONFIGURATION }} --no-restore
+    - name: Test
+      run: dotnet test "${{ env.WEB_WORKING_DIRECTORY }}" --no-build
+    - name: Publish
+      run: dotnet publish "${{ env.WEB_WORKING_DIRECTORY }}" --configuration ${{ env.CONFIGURATION }} --output "${{ env.AZUREWEBAPP_PACKAGE_PATH }}"
+    - name: Publish Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: webapp
+        path: ${{ env.AZUREWEBAPP_PACKAGE_PATH }}
+
+  deploy-web:
+      runs-on: windows-latest
+      needs: [deploy,build-web]
+      steps:
+      - name: Download artifact from build job
+        uses: actions/download-artifact@v3
+        with:
+          name: webapp
+          path: ${{ env.AZUREWEBAPP_PACKAGE_PATH }}
+      - name: Login to Azure
+        uses: azure/login@v1
+        with:
+              creds: ${{ secrets.AZURE_CREDENTIALS }} # Set up a GitHub secret for Azure credentials
+      - name: Deploy to Azure WebApp
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ needs.deploy.outputs.deployedWebUrl }}
+          package: ${{ env.AZUREWEBAPP_PACKAGE_PATH }}
+
+  restore-data:
+       runs-on: ubuntu-22.04
+       #needs: deploy
+       steps:
+       - name: Login to Azure
+         uses: azure/login@v1
+         with:
+              creds: ${{ secrets.AZURE_CREDENTIALS }} # Set up a GitHub secret for Azure credentials
+       
+       - uses: actions/checkout@v4
+
+       - name: Get info
+         id: mongo-info
+         uses: Azure/CLI@v1
+         with:
+              inlineScript: |
+                conn=$(az cosmosdb mongocluster list --resource-group ${{ github.event.inputs.resource-group-name }} --query "[].name" -o tsv)
+                
+                echo "conn=$conn" >> $GITHUB_OUTPUT
+        
+       - name: Setup mongodb-tools
+         run: |
+                wget https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2204-x86_64-100.9.4.deb
+                sudo apt install ./mongodb-database-tools-*-100.9.4.deb
+                mongorestore --version
+
+       - name: Mongo-tools usage
+         run: |
+                mongoimport --file products.json --type json --db retaildb --collection 'products' --ssl --uri ${{ format ('{0}{1}:{2}@{3}.{4}', env.MONGO_CONNECTION_STRING_SRV,github.event.inputs.mongoDbUserName,secrets.MONGO_DB_PASSWORD,steps.mongo-info.outputs.conn,env.MONGO_CONNECTION_STRING_CONN)}}
+                mongoimport --file customers.json --type json --db retaildb --collection 'customers' --ssl --uri ${{ format ('{0}{1}:{2}@{3}.{4}', env.MONGO_CONNECTION_STRING_SRV,github.event.inputs.mongoDbUserName,secrets.MONGO_DB_PASSWORD,steps.mongo-info.outputs.conn,env.MONGO_CONNECTION_STRING_CONN)}}
+                mongoimport --file salesOrders.json --type json --db retaildb --collection 'salesOrders' --ssl --uri ${{ format ('{0}{1}:{2}@{3}.{4}', env.MONGO_CONNECTION_STRING_SRV,github.event.inputs.mongoDbUserName,secrets.MONGO_DB_PASSWORD,steps.mongo-info.outputs.conn,env.MONGO_CONNECTION_STRING_CONN)}}
+         working-directory: infra/data
+       

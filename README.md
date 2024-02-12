@@ -1,14 +1,19 @@
-# Project
+### Prerequisites
+- Azure Subscription
+- Subscription access to Azure OpenAI Service. Start here to [Request Access to Azure OpenAI Service](https://customervoice.microsoft.com/Pages/ResponsePage.aspx?id=v4j5cvGGr0GRqy180BHbR7en2Ais5pxKtso_Pz4b1_xUOFA5Qk1UWDRBMjg0WFhPMkIzTzhKQ1dWNyQlQCN0PWcu)
 
-> This repo has been populated by an initial template to help get you started. Please
-> make sure to update the content to build a great experience for community-building.
+### Installation
 
-As the maintainer of this project, please make a few updates:
+1. Fork this repository to your own GitHub account.
 
-- Improving this README.MD file to provide a great experience
-- Updating SUPPORT.MD with content about this project's support experience
-- Understanding the security reporting process in SECURITY.MD
-- Remove this section from the README
+2. To deploy with Github actions follow the instructions [generate deployment credentials](https://learn.microsoft.com/en-us/azure/app-service/deploy-github-actions?tabs=userlevel%2Caspnetcore#1-generate-deployment-credentials) to create a service principle and crate a secret for GitHub Actions.
+
+-Generate deployment credentials this will allow GitHub to authenticate with Azure.
+-Configure the GitHub secret
+
+Create an additional secret to hold the password for Mongo DB the secret name should be MONGO_DB_PASSWORD
+
+Run the action by selecting "Actions" in the GitHub menu and select the "Deploy" action from the menu.
 
 ## Contributing
 

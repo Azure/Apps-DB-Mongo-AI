@@ -1,0 +1,31 @@
+﻿<div class="eshop-header home">
+    <div class="eshop-header-hero">
+        @{
+            var headerImage = "images/bikes/logo-test3.png";
+        }
+        <img role="presentation" src="@headerImage"/>
+    </div>
+    <div class="eshop-header-container">
+        <nav class="eshop-header-navbar">
+            <a class="logo logo-header" href="">
+                <img alt="Northern Mountains" src="images/bikes/logo.svg" class="logo logo-header" style="max-width:88px"/>
+            </a>
+
+            @* <UserMenu /> *@
+            <CartMenu/>
+        </nav>
+        <div class="eshop-header-intro">
+            @*  <h1><SectionOutlet SectionName="page-header-title" /></h1>
+            <p><SectionOutlet SectionName="page-header-subtitle" /></p> *@
+        </div>
+    </div>
+</div>
+
+@code {
+    // [CascadingParameter]
+    // public HttpContext? HttpContext { get; set; }
+
+    // // We can use Endpoint Metadata to determine the page currently being visited
+    // private Type? PageComponentType => HttpContext?.GetEndpoint()?.Metadata.OfType<ComponentTypeMetadata>().FirstOrDefault()?.Type;
+    // private bool IsCatalog => PageComponentType == typeof(Pages.Catalog.Catalog);
+}

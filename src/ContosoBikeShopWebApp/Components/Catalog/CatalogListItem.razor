@@ -1,0 +1,18 @@
+﻿@using SharedLib.Models
+<div class="catalog-item">
+    <a class="catalog-product" href="" data-enhance-nav="false">
+        <span class="catalog-product-image">
+            <img alt="@product.name" src="@product.imageUrl"/>
+        </span>
+        <span class="catalog-product-content">
+            <span class="name">@product.name</span>
+            <span class="price">$@product.price.ToString("0.00")</span>
+        </span>
+    </a>
+</div>
+
+@code {
+    [Parameter] [EditorRequired] public required Product product { get; set; }
+
+    [Parameter] public bool IsLoggedIn { get; set; }
+}

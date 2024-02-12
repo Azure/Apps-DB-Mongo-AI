@@ -1,0 +1,102 @@
+﻿@page "/"
+@using SharedLib.Models
+@using ContosoBikeShopWebApp.Services
+@using Microsoft.AspNetCore.Components.Sections
+@using ContosoBikeShopWebApp.Components.Catalog
+@inject NavigationManager Nav
+@inject ProductClientService ProductClientService
+
+<PageTitle>Northern Mountains</PageTitle>
+<SectionContent SectionName="page-header-title">Ready for a new adventure?</SectionContent>
+<SectionContent SectionName="page-header-subtitle">Start the season with the latest in clothing and equipment.</SectionContent>
+
+<div class="catalog">
+
+    @if (products is null)
+    {
+        <p>Loading...</p>
+    }
+    else
+    {
+        <div>
+            <div class="catalog-items">
+                @foreach (var item in products)
+                {
+                    <CatalogListItem product="@item"/>
+                }
+            </div>
+
+            <div class="page-links">
+                <input type="button" value="Previous" @onclick="PreviousPage"/>
+                @for (var i = Page - 2; i <= Page + 2; i++)
+                {
+                    var p = i;
+                    if (i > 0)
+                    {
+                        if (i == Page)
+                        {
+                            <span class="px-2" style="font-weight:bold;cursor:pointer" @onclick="() => ShowPage(p)">@i</span>
+                        }
+                        else
+                        {
+                            <span class="px-2" style="cursor:pointer" @onclick="() => ShowPage(p)">@i</span>
+                        }
+                    }
+                }
+                <input type="button" value="next" @onclick="NextPage"/>
+
+            </div>
+
+        </div>
+    }
+</div>
+
+@code {
+
+
+    public int? Page = 1;
+
+    const int PageSize = 9;
+
+    public List<Product>? products;
+
+    ProductCatalogResult productCatalogResults;
+
+    static IEnumerable<int> GetVisiblePageIndexes(ProductCatalogResult productList)
+    {
+        return Enumerable.Range(1, (int)Math.Ceiling(1.0 * productList.Count / PageSize));
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ShowPage();
+    }
+
+    protected async Task NextPage()
+    {
+        Page++;
+        await ShowPage();
+    }
+
+    protected async Task PreviousPage()
+    {
+        if (Page > 1)
+        {
+            Page--;
+            await ShowPage();
+        }
+    }
+
+    protected async Task ShowPage()
+    {
+        productCatalogResults = await ProductClientService.GetProductCatalogResult(false, PageSize, Page.GetValueOrDefault(1) - 1);
+        products = productCatalogResults.Data;
+    }
+
+    protected async Task ShowPage(int? i)
+    {
+        Page = i;
+        await ShowPage();
+    }
+
+}
